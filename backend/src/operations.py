@@ -4,6 +4,7 @@ from decimal import Decimal
 from fastapi import HTTPException
 
 from .db import connect
+from .forecast_versions import effective_forecast_id, lock_day_version, release_day_lock, turnover_of
 from .overflow_capacity import legacy_closure_peak, legacy_commitments, peak_window_commitment
 from .workflow import audit
 
@@ -110,11 +111,16 @@ def propose_diversion(item, actor):
                         (item.closure_id,), '封控工单不存在')
         if closure['status'] != 'approved' or not closure['starts_on'] <= item.service_day <= closure['ends_on']:
             raise HTTPException(409, '分流运营日必须在已批准的封控窗口内')
-        forecast = fetch(conn, 'SELECT * FROM forecast_plan WHERE code=%s', (item.forecast_code,), '预测方案不存在')
-        point = next((point for point in forecast['predictions'] or []
-                      if point['date'] == item.service_day.isoformat()), None)
-        if forecast['lot_id'] != closure['lot_id'] or forecast['status'] != 'published' or point is None:
+        forecast = fetch(conn, 'SELECT * FROM forecast_plan WHERE code=%s FOR UPDATE', (item.forecast_code,), '预测方案不存在')
+        turnover = turnover_of(forecast, item.service_day)
+        if forecast['lot_id'] != closure['lot_id'] or forecast['status'] != 'published' or turnover is None:
             raise HTTPException(422, '须使用同一来源场站已发布且覆盖该日的预测')
+        # 跨场分流只能引用该运营日“在用”的预测版本，避免选到已被换掉的旧周转值。
+        in_use_id = effective_forecast_id(conn, closure['lot_id'], item.service_day)
+        if in_use_id is None:
+            raise HTTPException(422, '该场站当天没有已发布预测，不能安排分流')
+        if forecast['id'] != in_use_id:
+            raise HTTPException(409, '该预测不是当天在用版本，请在预测工作台确认当天版本后重新选择')
         target = fetch(conn, 'SELECT * FROM parking_lot WHERE code=%s', (item.target_lot_code,), '接收停车场不存在')
         if target['id'] == closure['lot_id'] or target['status'] != 'active' or item.reserved_spaces > target['capacity']:
             raise HTTPException(422, '接收场站须为另一运营场站，预留数不得超过其额定容量')
@@ -122,7 +128,7 @@ def propose_diversion(item, actor):
             (closure_id,forecast_id,target_lot_id,service_day,reserved_spaces,forecast_turnover,dispatch_note,created_by)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (closure_id,service_day) WHERE status <> 'cancelled'
             DO NOTHING RETURNING id''', (closure['id'], forecast['id'], target['id'], item.service_day,
-            item.reserved_spaces, Decimal(str(point['turnover'])), item.dispatch_note, actor)).fetchone()
+            item.reserved_spaces, Decimal(str(turnover)), item.dispatch_note, actor)).fetchone()
         if created is None:
             raise HTTPException(409, '此封控工单当天已有一张有效分流单')
         audit(conn, actor, 'parking_diversion', created['id'], 'proposed', item.dispatch_note)
@@ -147,6 +153,9 @@ def change_diversion(diversion_id, actor, action, note):
             headroom = max(0, lot['capacity'] - blocked - lot['current_occupancy'] - reserved)
             if lot['status'] != 'active' or row['reserved_spaces'] > headroom:
                 raise HTTPException(409, f'接收场当前可承诺 {headroom} 位，无法启用此分流单')
+            # 先启用即锁住当天预测版本：与换版并发时，后来的换版会因锁定被拒绝。
+            lock_day_version(conn, row['source_id'], row['service_day'], row['forecast_id'],
+                             'diversion_active', actor)
             conn.execute("""UPDATE parking_diversion SET status='active',activated_by=%s,
                 target_headroom_at_activation=%s WHERE id=%s""", (actor, headroom, diversion_id))
             event = 'activated'
@@ -154,6 +163,7 @@ def change_diversion(diversion_id, actor, action, note):
             if row['status'] != 'proposed' and not (row['status'] == 'active' and row['service_day'] > utc_today()):
                 raise HTTPException(409, '当天或已执行的分流需通过复盘结案')
             conn.execute("UPDATE parking_diversion SET status='cancelled',cancelled_by=%s WHERE id=%s", (actor, diversion_id))
+            release_day_lock(conn, row['source_id'], row['service_day'])
             event = 'cancelled'
         audit(conn, actor, 'parking_diversion', diversion_id, event, note)
         return conn.execute(DIVERSIONS + ' WHERE d.id=%s', (diversion_id,)).fetchone()
@@ -204,5 +214,11 @@ def review_settlement(settlement_id, actor, action, note):
         audit(conn, actor, 'diversion_settlement', settlement_id, status, note)
         if status == 'accepted':
             conn.execute("UPDATE parking_diversion SET status='closed' WHERE id=%s", (diversion['id'],))
+            source_lot = conn.execute('''SELECT c.lot_id FROM parking_diversion d
+                JOIN capacity_closure c ON c.id=d.closure_id WHERE d.id=%s''', (diversion['id'],)).fetchone()
+            # 结案后历史数字冻结：锁定原因从“已启用”转为“已结案”，版本仍指向分流当时的预测。
+            conn.execute('''UPDATE forecast_day_version SET lock_reason='diversion_closed', updated_at=now()
+                WHERE lot_id=%s AND service_day=%s AND forecast_id=%s''',
+                         (source_lot['lot_id'], diversion['service_day'], diversion['forecast_id']))
             audit(conn, actor, 'parking_diversion', diversion['id'], 'closed', f'复盘 #{settlement_id} 通过')
         return conn.execute(SETTLEMENTS + ' WHERE s.id=%s', (settlement_id,)).fetchone()

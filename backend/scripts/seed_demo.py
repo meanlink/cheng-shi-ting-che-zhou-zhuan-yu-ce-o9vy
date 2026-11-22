@@ -39,5 +39,14 @@ def seed():
             VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (reference) DO NOTHING''',
             ('WL-DEMO-07',lot['id'],operations_day,operations_day,72,'B区车位划线和道闸联调','operator@metro.demo'))
         seed_overflow(conn, lot_ids['PARK-07'], lot_ids['PARK-12'])
-        conn.commit(); return {table:conn.execute(f'SELECT count(*) AS total FROM {table}').fetchone()['total'] for table in ('staff','parking_lot','interval_observation','forecast_plan','dispatch_alert','capacity_closure','parking_diversion','diversion_settlement','overflow_window','overflow_gate_batch','overflow_closeout')}
+        # 同一场站、同一预测窗口的第二版已发布预测，供预测工作台逐日换版演示。
+        v2_code='PF-20261123-07-V2'
+        if not conn.execute('SELECT 1 FROM forecast_plan WHERE code=%s',(v2_code,)).fetchone():
+            v2_points=[{**point,'turnover':round(point['turnover']*1.08,2)} for point in predictions]
+            conn.execute('''INSERT INTO forecast_plan(code,lot_id,horizon_start,horizon_days,capacity_snapshot,status,
+                calendar_complete,capacity_change_confirmed,predictions,mae,mape,model_version,created_by,reviewed_by,review_note)
+                VALUES(%s,%s,%s,%s,%s,'published',true,true,%s,%s,%s,'seasonal-moving-average-v2','analyst@metro.demo',
+                'supervisor@metro.demo','复核新增观测后发布的第二版预测，可在预测工作台逐日换版')''',
+                (v2_code,lot['id'],date(2026,11,23),7,lot['capacity'],json.dumps(v2_points),mae,mape))
+        conn.commit(); return {table:conn.execute(f'SELECT count(*) AS total FROM {table}').fetchone()['total'] for table in ('staff','parking_lot','interval_observation','forecast_plan','dispatch_alert','capacity_closure','parking_diversion','diversion_settlement','overflow_window','overflow_gate_batch','overflow_closeout','forecast_day_version','forecast_version_switch')}
 if __name__=='__main__': print(json.dumps(seed(),ensure_ascii=False,sort_keys=True))

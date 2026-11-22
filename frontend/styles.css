@@ -27,3 +27,17 @@
 .operation-record .badge.good { background: var(--teal2); color: var(--teal); }
 .operation-record .badge.critical { background: oklch(95% .025 28); color: var(--red); }
 @media (max-width: 900px) { .body { grid-template-columns: minmax(0, 1fr); } }
+
+.version-panel { margin-bottom: 1.25rem; }
+.version-panel .card-head { margin-bottom: .9rem; }
+.version-hint { font-size: .8rem; margin: .35rem 0 0; max-width: 720px; line-height: 1.6; }
+.version-table td, .version-table th { vertical-align: top; }
+.version-table tr.is-locked { background: #fbf7f2; }
+.version-table .alt-code { display: inline-block; margin: .1rem .25rem .1rem 0; background: #f1f4f1; padding: .12rem .35rem; border-radius: 3px; }
+.version-table .lock-note { color: var(--orange); font-weight: 700; }
+.version-table .badge { margin-bottom: .25rem; }
+.switch-controls { display: flex; gap: .45rem; align-items: center; min-width: 230px; }
+.switch-controls select { padding: .5rem .4rem; border: 1px solid var(--line); border-radius: 3px; min-width: 0; flex: 1; }
+.switch-controls .button { min-height: 34px; padding: .45rem .7rem; white-space: nowrap; }
+.badge.good { background: var(--teal2); color: var(--teal); }
+.badge.critical { background: #fae2db; color: var(--red); }

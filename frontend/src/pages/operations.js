@@ -145,13 +145,28 @@ function bindOperation(page, mount, isCurrent) {
     const form = document.querySelector('[data-operation-create]');
     if (form) {
         if (page === 'diversions') {
-            const filterSources = () => {
+            const filterSources = async () => {
                 const closure = operations.closures.find(row => row.id === Number(form.elements.closure_id.value));
                 const day = form.elements.service_day.value;
-                const forecast = state.forecasts.filter(row => row.status === 'published' && row.lot_code === closure?.lot_code &&
-                    row.predictions?.some(point => point.date === day));
-                form.querySelector('[data-forecast-options]').innerHTML = select('forecast_code', forecast.map(row => [row.code, row.code]),
-                    forecast.length ? '选择已发布预测' : '该场站当天没有可用预测');
+                const host = form.querySelector('[data-forecast-options]');
+                if (!closure || !day) {
+                    host.innerHTML = select('forecast_code', [], '先选封控单和运营日');
+                    return;
+                }
+                // 只允许选择该运营日“在用”的预测版本，旧版本会被后端拒绝。
+                let inUseCode = null;
+                try {
+                    const versionRows = await api(`/forecasts/version-days?lot_code=${encodeURIComponent(closure.lot_code)}`);
+                    const matched = versionRows.find(row => row.service_day === day);
+                    inUseCode = matched?.forecast_code ?? null;
+                } catch (error) {
+                    host.innerHTML = select('forecast_code', [], `版本读取失败：${error.message}`);
+                    return;
+                }
+                const forecast = state.forecasts.filter(row => row.status === 'published' && row.lot_code === closure.lot_code &&
+                    row.predictions?.some(point => point.date === day) && row.code === inUseCode);
+                host.innerHTML = select('forecast_code', forecast.map(row => [row.code, `${row.code}（当天在用）`]),
+                    forecast.length ? '选择当天在用预测' : '该场站当天没有在用的已发布预测');
             };
             form.elements.closure_id.onchange = () => {
                 const closure = operations.closures.find(row => row.id === Number(form.elements.closure_id.value));

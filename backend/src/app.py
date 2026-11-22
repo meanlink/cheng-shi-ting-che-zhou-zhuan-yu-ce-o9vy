@@ -3,10 +3,11 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from . import workflow
+from . import workflow, forecast_versions
 from .auth import authenticate, current_user, require
 from .contracts import AlertIn, ForecastIn, Login, ObservationIn, ReviewIn, Role
 from .db import connect, migrate, redis_client
+from .forecast_version_input import VersionSwitchIn
 from .middlewares import quota_middleware, trace_middleware
 from .operations_routes import router as operations_router
 from .overflow_routes import router as overflow_router
@@ -55,6 +56,10 @@ def get_observations(lot_code:str|None=None,user=Depends(current_user)): return 
 def post_observation(item:ObservationIn,user=Depends(analyst)): return workflow.add_observation(item,user['email'])
 @app.get('/forecasts')
 def get_forecasts(user=Depends(current_user)): return workflow.forecast_list()
+@app.get('/forecasts/version-days')
+def get_version_days(lot_code:str|None=None,user=Depends(current_user)): return forecast_versions.version_days(lot_code)
+@app.post('/forecasts/versions/switch')
+def switch_version(item:VersionSwitchIn,user=Depends(supervisor)): return forecast_versions.switch_version(item,user['email'])
 @app.post('/forecasts',status_code=201)
 def post_forecast(item:ForecastIn,user=Depends(analyst)): return workflow.create_forecast(item,user['email'])
 @app.get('/forecasts/{code}')

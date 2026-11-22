@@ -47,7 +47,12 @@ def create_forecast(item,actor):
         lot=conn.execute('SELECT * FROM parking_lot WHERE code=%s',(item.lot_code,)).fetchone()
         if not lot: raise HTTPException(404,'停车场不存在')
         code=f'PF-{item.horizon_start.strftime("%Y%m%d")}-{item.lot_code.split("-")[-1]}'
-        if conn.execute('SELECT code FROM forecast_plan WHERE code=%s',(code,)).fetchone(): raise HTTPException(409,f'预测方案 {code} 已存在')
+        if conn.execute('SELECT code FROM forecast_plan WHERE code=%s',(code,)).fetchone():
+            # 同场同起始日的第二版预测，保留首版编码并追加版次后缀。
+            suffix=2
+            while conn.execute('SELECT code FROM forecast_plan WHERE code=%s',(f'{code}-V{suffix}',)).fetchone():
+                suffix+=1
+            code=f'{code}-V{suffix}'
         row=conn.execute('INSERT INTO forecast_plan(code,lot_id,horizon_start,horizon_days,capacity_snapshot,created_by) VALUES(%s,%s,%s,%s,%s,%s) RETURNING *',(code,lot['id'],item.horizon_start,item.horizon_days,lot['capacity'],actor)).fetchone()
         audit(conn,actor,'forecast',row['id'],'created',f'{code} capacity={lot["capacity"]}')
     return forecast_detail(code)
