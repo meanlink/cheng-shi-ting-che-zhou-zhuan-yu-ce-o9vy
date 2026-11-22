@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
+from psycopg.errors import DeadlockDetected
 
 from .db import connect
 from .forecast_versions import effective_forecast_id, lock_day_version, release_day_lock, turnover_of
@@ -154,8 +155,11 @@ def change_diversion(diversion_id, actor, action, note):
             if lot['status'] != 'active' or row['reserved_spaces'] > headroom:
                 raise HTTPException(409, f'接收场当前可承诺 {headroom} 位，无法启用此分流单')
             # 先启用即锁住当天预测版本：与换版并发时，后来的换版会因锁定被拒绝。
-            lock_day_version(conn, row['source_id'], row['service_day'], row['forecast_id'],
-                             'diversion_active', actor)
+            try:
+                lock_day_version(conn, row['source_id'], row['service_day'], row['forecast_id'],
+                                 'diversion_active', actor)
+            except DeadlockDetected:
+                raise HTTPException(409, '当天预测正在换版，请按当前在用版本重新安排分流')
             conn.execute("""UPDATE parking_diversion SET status='active',activated_by=%s,
                 target_headroom_at_activation=%s WHERE id=%s""", (actor, headroom, diversion_id))
             event = 'activated'
