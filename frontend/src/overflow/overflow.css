@@ -1,0 +1,176 @@
+.overflow-workspace {
+    max-width: 1300px;
+    padding: 1.25rem clamp(1rem, 3vw, 2.75rem) 2rem;
+}
+.overflow-heading {
+    display: block;
+    margin-bottom: 1.15rem;
+    padding-bottom: .85rem;
+    border-bottom: 1px solid var(--line);
+}
+.overflow-heading h1 {
+    font-size: clamp(2.2rem, 4vw, 3.6rem);
+    margin-bottom: .5rem;
+}
+.overflow-heading p, .overflow-summary p {
+    margin-bottom: 0;
+    color: var(--muted);
+}
+.overflow-dispatch {
+    display: grid;
+    gap: 1.5rem;
+}
+.overflow-dispatch-split {
+    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+    align-items: start;
+}
+.overflow-panel, .overflow-card, .overflow-summary {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 1.2rem 1.35rem;
+    margin-bottom: 1rem;
+    overflow-wrap: anywhere;
+}
+.overflow-card {
+    border-left: 3px solid var(--teal);
+}
+.overflow-card h3 {
+    font-size: 1.16rem;
+    margin: .65rem 0 .35rem;
+}
+.overflow-time {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+.overflow-card-top, .overflow-summary, .overflow-section-title {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: start;
+}
+.overflow-section-title {
+    margin-bottom: .6rem;
+    align-items: baseline;
+}
+.overflow-section-title h2 {
+    margin: 0;
+}
+.overflow-section-title a, .overflow-section-title span {
+    color: var(--muted);
+    font-size: .8rem;
+}
+.overflow-card dl {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65rem 1.7rem;
+    padding: .7rem 0;
+    border-block: 1px solid var(--line);
+}
+.overflow-card dt {
+    font-size: .75rem;
+    color: var(--muted);
+}
+.overflow-card dd {
+    margin: .2rem 0 0;
+    font-weight: 700;
+}
+.overflow-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .55rem;
+}
+.overflow-actions a {
+    text-decoration: none;
+}
+.overflow-fields, .overflow-stats, .overflow-gate-form {
+    display: grid;
+    gap: .75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.overflow-fields-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.overflow-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-bottom: 1rem;
+}
+.overflow-gate-form {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: end;
+}
+.overflow-gate-form .form-status {
+    grid-column: 1 / -1;
+}
+.overflow-picker {
+    display: grid;
+    gap: .35rem;
+    color: var(--muted);
+    font-weight: 700;
+    width: min(100%, 32rem);
+    margin-bottom: 1rem;
+}
+.overflow-picker select {
+    max-width: 100%;
+    border: 1px solid var(--line);
+    background: white;
+    color: var(--ink);
+    padding: .65rem;
+}
+.overflow-warning, .overflow-feedback {
+    color: #753e17;
+    background: #fcf1dd;
+    border-left: 3px solid #bc743c;
+    padding: .75rem 1rem;
+}
+.overflow-feedback {
+    color: var(--teal);
+    background: var(--teal2);
+    border-color: var(--teal);
+    margin-bottom: .65rem;
+}
+.overflow-workspace .badge.good {
+    background: var(--teal2);
+    color: var(--teal);
+}
+.overflow-workspace .badge.critical {
+    background: #fae2db;
+    color: var(--red);
+}
+.overflow-table {
+    overflow-x: auto;
+}
+.overflow-table table {
+    width: 100%;
+    min-width: 480px;
+    border-collapse: collapse;
+}
+.overflow-table td, .overflow-table th {
+    border-bottom: 1px solid var(--line);
+    padding: .7rem .5rem;
+    text-align: left;
+}
+.overflow-dialog {
+    border: 1px solid var(--line);
+    padding: 1.4rem;
+    width: min(30rem, calc(100vw - 2rem));
+    color: var(--ink);
+}
+.overflow-dialog::backdrop {
+    background: rgb(18 42 41 / 58%);
+}
+.overflow-workspace .button:disabled, .overflow-dialog .button:disabled {
+    opacity: .6;
+    cursor: wait;
+}
+@media (max-width: 1100px) {
+    .overflow-dispatch-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .overflow-intake .overflow-fields { grid-template-columns: 1fr; }
+}
+@media (max-width: 800px) {
+    .overflow-dispatch-split { grid-template-columns: minmax(0, 1fr); }
+    .overflow-stats, .overflow-gate-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+    .overflow-fields-three, .overflow-gate-form { grid-template-columns: minmax(0, 1fr); }
+}

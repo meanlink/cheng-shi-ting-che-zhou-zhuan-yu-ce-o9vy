@@ -1,0 +1,82 @@
+name: parking-turnover-forecast
+x-app-env: &app-env
+  PGHOST: db
+  PGPORT: 5432
+  PGDATABASE: parking
+  PGUSER: parking
+  PGPASSWORD: ${DB_PASSWORD:-parking-local-db}
+  JWT_SECRET: ${JWT_SECRET:-parking-turnover-local-key-change-this}
+  REDIS_URL: redis://redis:6379/0
+  SEED_DEMO: ${SEED_DEMO:-true}
+x-db-ready: &db-ready
+  db: {condition: service_healthy}
+  redis: {condition: service_healthy}
+services:
+  frontend:
+    build: ./frontend
+    container_name: ${COMPOSE_PROJECT_NAME:-parking-turnover-forecast}-frontend
+    ports: ["${FRONTEND_PORT:-18246}:80"]
+    depends_on:
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1/']
+      interval: 3s
+      timeout: 2s
+      retries: 15
+  backend:
+    build: ./backend
+    container_name: ${COMPOSE_PROJECT_NAME:-parking-turnover-forecast}-backend
+    environment: *app-env
+    depends_on: *db-ready
+    ports: ["${BACKEND_PORT:-19246}:8000"]
+    volumes: [parking_artifacts:/artifacts]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  worker:
+    build: ./backend
+    command: [python, -m, src.worker]
+    container_name: ${COMPOSE_PROJECT_NAME:-parking-turnover-forecast}-worker
+    environment: *app-env
+    depends_on:
+      <<: *db-ready
+      backend: {condition: service_healthy}
+    volumes: [parking_artifacts:/artifacts]
+    healthcheck:
+      test: [CMD, python, -c, "import pathlib,time; assert time.time()-pathlib.Path('/tmp/worker-heartbeat').stat().st_mtime < 12"]
+      interval: 3s
+      timeout: 2s
+      retries: 12
+  db:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-parking-turnover-forecast}-db
+    environment:
+      POSTGRES_DB: parking
+      POSTGRES_USER: parking
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-parking-local-db}
+    ports: ["${DB_PORT:-17746}:5432"]
+    volumes: [parking_db:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD, pg_isready, -U, parking, -d, parking]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-parking-turnover-forecast}-redis
+    command: [redis-server, --appendonly, 'yes']
+    volumes: [parking_redis:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+volumes:
+  parking_db:
+    name: parking-turnover-forecast-db
+  parking_redis:
+    name: parking-turnover-forecast-redis
+  parking_artifacts:
+    name: parking-turnover-forecast-artifacts
